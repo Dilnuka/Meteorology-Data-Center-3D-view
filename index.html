@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#e2e8f0">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="DoM Data Center">
+    <meta name="description" content="Interactive 3D digital twin of the Department of Meteorology Tier III Data Center. Orbit, walk, and inspect racks, cooling, power, and fire systems.">
+    <meta property="og:title" content="DoM Tier III Data Center — 3D Digital Twin">
+    <meta property="og:description" content="Explore the Meteorology Department data center in 3D. Orbit, walk inside, and inspect engineering systems.">
+    <meta property="og:type" content="website">
+    <meta name="twitter:card" content="summary_large_image">
+    <title>DoM Tier III Data Center — 3D Digital Twin</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/src/style.css">
+</head>
+<body class="light-theme">
+    <a class="skip-link" href="#main-hud-panel">Skip to controls</a>
+
+    <div id="webgl-fallback" class="fatal-fallback" hidden aria-hidden="true">
+        <h1>WebGL is required</h1>
+        <p>This 3D data center viewer needs a modern browser with WebGL enabled (Chrome, Edge, Firefox, or Safari).</p>
+    </div>
+
+    <div id="loader" role="status" aria-live="polite" aria-busy="true">
+        <div class="spinner" aria-hidden="true"></div>
+        <p>Loading data center digital twin…</p>
+        <p class="loader-sub">Preparing racks, cooling, power &amp; fire systems</p>
+    </div>
+
+    <div id="label-layer" aria-hidden="true">
+        <div class="floating-label" id="lbl-ups">2N UPS System (80kVA)</div>
+        <div class="floating-label" id="lbl-pac-l">PAC Unit 01 (80kW)</div>
+        <div class="floating-label" id="lbl-pac-r">PAC Unit 02 (80kW)</div>
+        <div class="floating-label" id="lbl-racks">Core 45U Server Racks</div>
+        <div class="floating-label label-red" id="lbl-fire">Inert Gas Fire Suppression</div>
+        <div class="floating-label label-green" id="lbl-security">FACP &amp; Biometric Security Entry</div>
+        <div class="floating-label" id="lbl-panel">3-Phase Distribution Panel</div>
+        <div class="floating-label label-green" id="lbl-tray">Path A/B Cable Trays (Plenum)</div>
+        <div class="floating-label label-green" id="lbl-leak">Water Leak Detection Loop</div>
+        <div class="floating-label" id="lbl-overhead-data">Overhead Data Trays (Blue Cat6)</div>
+        <div class="floating-label" id="lbl-overhead-power">Overhead Power Trays (Black)</div>
+        <div class="floating-label label-red" id="lbl-vesda">VESDA Air-Sampling Pipes</div>
+        <div class="floating-label label-red" id="lbl-smoke">Optical Smoke Detector</div>
+        <div class="floating-label label-green" id="lbl-busbar">Copper Tech Ground Busbar</div>
+        <div class="floating-label label-green" id="lbl-earth">Green/Yellow Earth Cabling</div>
+    </div>
+
+    <div id="canvas-container" aria-label="3D data center viewer"></div>
+    <div id="crosshair" aria-hidden="true">+</div>
+    <div class="alarm-overlay" id="alarm-screen" aria-hidden="true"></div>
+    <div id="drill-banner" class="drill-banner" hidden role="status">
+        SIMULATION ONLY — Gas discharge drill active
+    </div>
+
+    <header class="app-chrome" id="app-chrome">
+        <button type="button" id="toggle-hud-btn" class="icon-btn" aria-expanded="false" aria-controls="main-hud-panel" title="Open controls">
+            <span class="icon-menu" aria-hidden="true"></span>
+            <span class="btn-caption">Menu</span>
+            <span class="sr-only">Toggle controls</span>
+        </button>
+        <div class="chrome-brand">
+            <span class="chrome-title">Meteorology Data Center</span>
+            <span class="chrome-spec">Tier III Digital Twin · Demo</span>
+        </div>
+        <div class="chrome-actions">
+            <button type="button" id="help-btn" class="icon-btn" title="How to use" aria-label="How to use this viewer" aria-haspopup="dialog">
+                <span class="icon-help" aria-hidden="true">?</span>
+            </button>
+            <button type="button" id="theme-fab" class="icon-btn theme-fab" title="Switch to night mode" aria-label="Switch to night mode" aria-pressed="false">
+                <span class="icon-sun" aria-hidden="true"></span>
+                <span class="icon-moon" aria-hidden="true"></span>
+                <span class="btn-caption" id="theme-fab-label">Night</span>
+            </button>
+            <button type="button" id="reset-view-btn" class="icon-btn" title="Reset camera" aria-label="Reset camera view">
+                <span class="icon-reset" aria-hidden="true"></span>
+            </button>
+            <button type="button" id="walk-fab" class="icon-btn accent" title="Walk inside" aria-label="Enter walk mode" aria-pressed="false">
+                <span class="icon-walk" aria-hidden="true"></span>
+                <span class="btn-caption">Walk</span>
+            </button>
+        </div>
+    </header>
+
+    <div class="hud-backdrop" id="hud-backdrop" hidden></div>
+
+    <aside class="hud-panel hidden" id="main-hud-panel" aria-label="Viewer controls" inert>
+        <div class="sheet-handle" aria-hidden="true"><span></span></div>
+        <div class="hud-header">
+            <div>
+                <p class="eyebrow">Department of Meteorology</p>
+                <h1 id="hud-heading">Data Center Controls</h1>
+                <p class="subtitle">Spec ref: SLMOI/CRES/DOM/G/NCB/142 · Illustrative twin</p>
+            </div>
+            <button type="button" id="close-hud-btn" class="icon-btn ghost" aria-label="Close controls">
+                <span class="icon-close" aria-hidden="true"></span>
+            </button>
+        </div>
+
+        <div class="hud-scroll">
+            <details class="control-details" open>
+                <summary>Navigate &amp; inspect</summary>
+                <div class="details-body">
+                    <button type="button" class="btn" id="fp-btn" aria-pressed="false">Enter Walk Mode</button>
+                    <label class="field-label" for="asset-select">Jump to a system</label>
+                    <select id="asset-select" class="asset-select">
+                        <option value="">Select an asset…</option>
+                        <option value="room">Architecture &amp; Plenum</option>
+                        <option value="security">Physical Security</option>
+                        <option value="racks">Core IT Cabinets</option>
+                        <option value="cooling">N+1 PAC Cooling</option>
+                        <option value="power">2N UPS System</option>
+                        <option value="fire">Fire Suppression &amp; EMS</option>
+                        <option value="plenum">Under-Floor (X-Ray)</option>
+                    </select>
+                </div>
+            </details>
+
+            <details class="control-details" open>
+                <summary>View layers</summary>
+                <div class="details-body">
+                    <div class="btn-grid">
+                        <button type="button" class="btn btn-outline" id="xray-btn" aria-pressed="false">X-Ray Plenum</button>
+                        <button type="button" class="btn btn-outline" id="label-toggle-btn" aria-pressed="true">Labels</button>
+                        <button type="button" class="btn btn-outline" id="airflow-btn" aria-pressed="false">Airflow</button>
+                        <button type="button" class="btn btn-outline" id="thermal-btn" aria-pressed="false">Thermal View</button>
+                    </div>
+                </div>
+            </details>
+
+            <details class="control-details">
+                <summary>Simulation</summary>
+                <div class="details-body">
+                    <button type="button" class="btn btn-outline btn-danger" id="fire-btn" aria-pressed="false">
+                        Simulate Gas Discharge Drill
+                    </button>
+                    <p class="hint-text">Drill is a visual simulation only — not a live alarm. Use the sun/moon button in the top bar for light or night mode.</p>
+                </div>
+            </details>
+
+            <section class="specs-card" id="specs-panel" aria-labelledby="spec-title">
+                <h2 class="specs-title" id="spec-title">Getting started</h2>
+                <p class="specs-body" id="spec-desc">Drag to orbit the room. Tap or click racks, PACs, UPS, or fire systems to read specs. Use Walk to step inside at eye level.</p>
+            </section>
+
+            <div class="telemetry" role="status">
+                <span class="status-dot" id="status-dot" aria-hidden="true"></span>
+                <div>
+                    <span class="telemetry-label">Demo telemetry</span>
+                    <span id="telemetry-data">Plenum Temp: 19.8°C · Aisle RH: 51%</span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Compact inspect card (mobile-friendly) -->
+    <div id="inspect-peek" class="inspect-peek" hidden>
+        <div class="peek-content">
+            <h2 id="peek-title">Asset</h2>
+            <p id="peek-desc"></p>
+        </div>
+        <div class="peek-actions">
+            <button type="button" class="btn btn-outline" id="peek-more">Full details</button>
+            <button type="button" class="icon-btn ghost" id="peek-close" aria-label="Dismiss">
+                <span class="icon-close" aria-hidden="true"></span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Desktop walk guidance bar -->
+    <div id="desktop-walk-hud" class="desktop-walk-hud" hidden>
+        <div class="walk-keys" aria-hidden="true">
+            <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>
+            <span>move</span>
+            <span class="sep">·</span>
+            <span>Mouse look</span>
+            <span class="sep">·</span>
+            <span>Click = inspect</span>
+            <span class="sep">·</span>
+            <kbd>Esc</kbd>
+            <span>exit</span>
+        </div>
+        <button type="button" class="btn exit-walk-btn-inline" id="desktop-exit-walk">Exit Walk</button>
+    </div>
+
+    <!-- Mobile walk controls -->
+    <div id="mobile-walk-ui" class="mobile-walk-ui" hidden aria-hidden="true">
+        <div class="look-hint" id="look-hint">Drag to look · left stick moves · Exit when done</div>
+        <div class="joystick" id="joystick" aria-label="Movement joystick">
+            <div class="joystick-base">
+                <div class="joystick-knob" id="joystick-knob"></div>
+            </div>
+            <span class="joy-label">Move</span>
+        </div>
+        <button type="button" id="exit-walk-btn" class="btn exit-walk-btn">Exit Walk</button>
+    </div>
+
+    <div class="instructions" id="instructions" role="note">
+        <span class="hint-pointer-fine">Drag to orbit · Scroll to zoom · Right-drag to pan · Click assets to inspect · ? for help</span>
+        <span class="hint-pointer-coarse">One finger orbit · Pinch zoom · Tap asset · Menu opens controls · ? for help</span>
+    </div>
+
+    <!-- First-run guided tour -->
+    <div id="tour-overlay" class="tour-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="tour-title">
+        <div class="tour-card">
+            <p class="tour-step" id="tour-step-label">Step 1 of 3</p>
+            <h2 id="tour-title">Orbit the room</h2>
+            <p id="tour-body">Drag with your mouse or finger to look around the data center from above. Scroll or pinch to zoom in on racks and PAC units.</p>
+            <div class="tour-actions">
+                <button type="button" class="btn btn-outline" id="tour-skip">Skip</button>
+                <button type="button" class="btn" id="tour-next">Next</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Help modal -->
+    <div id="help-modal" class="help-modal" hidden role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <div class="help-dialog">
+            <div class="help-header">
+                <h2 id="help-title">How to explore</h2>
+                <button type="button" class="icon-btn ghost" id="help-close" aria-label="Close help">
+                    <span class="icon-close" aria-hidden="true"></span>
+                </button>
+            </div>
+            <div class="help-body">
+                <section>
+                    <h3>Orbit (default)</h3>
+                    <ul>
+                        <li><strong>Desktop:</strong> Left-drag rotate · Scroll zoom · Right-drag pan</li>
+                        <li><strong>Phone/tablet:</strong> One finger rotate · Pinch zoom/pan</li>
+                        <li><strong>Reset view:</strong> circular arrow in the top bar</li>
+                    </ul>
+                </section>
+                <section>
+                    <h3>Inspect assets</h3>
+                    <ul>
+                        <li>Click or tap racks, PAC units, UPS, fire systems, or the floor</li>
+                        <li>Or open <strong>Menu → Jump to a system</strong> for a list</li>
+                        <li>Turn on <strong>X-Ray Plenum</strong> to see under-floor trays</li>
+                    </ul>
+                </section>
+                <section>
+                    <h3>Walk inside</h3>
+                    <ul>
+                        <li>Press <strong>Walk</strong> in the top bar (or Menu)</li>
+                        <li><strong>Desktop:</strong> WASD / arrows move · mouse looks · Esc exits · click inspects</li>
+                        <li><strong>Mobile:</strong> drag screen to look · use the left stick to move · Exit Walk</li>
+                    </ul>
+                </section>
+                <section>
+                    <h3>Layers &amp; demos</h3>
+                    <ul>
+                        <li><strong>Labels</strong> — floating name pins</li>
+                        <li><strong>Airflow</strong> — cold-aisle containment doors</li>
+                        <li><strong>Thermal View</strong> — illustrative heat visualization (not live CFD)</li>
+                        <li><strong>Gas drill</strong> — visual simulation only</li>
+                    </ul>
+                </section>
+                <p class="help-footnote">Illustrative digital twin for familiarization. Telemetry values are demo data.</p>
+            </div>
+            <button type="button" class="btn" id="help-done">Got it</button>
+        </div>
+    </div>
+
+    <div id="sr-announcer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+    <noscript>
+        <div class="fatal-fallback">
+            <h1>JavaScript required</h1>
+            <p>Enable JavaScript to load the 3D data center viewer.</p>
+        </div>
+    </noscript>
+
+    <script type="module" src="/src/main.js"></script>
+</body>
+</html>
