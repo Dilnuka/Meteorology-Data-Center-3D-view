@@ -1,17 +1,17 @@
 /**
  * Lightweight visit tracking for the shared demo link.
- * 1) Always increments a free public counter (no signup).
- * 2) Optionally sends to Google Analytics 4 if you set a measurement ID.
  *
- * Check visit count anytime:
- *   https://api.counterapi.dev/v1/dom-meteorology-dc/pageviews
+ * Uses hits.sh (no API key / signup). CounterAPI v1 is deprecated and v2
+ * requires a secret API key that cannot be safely shipped in a public site.
  *
- * Optional GA4: set window.__GA_MEASUREMENT_ID = 'G-XXXXXXXX' before this loads,
- * or add ?ga=G-XXXXXXXX once for local testing.
+ * Check visit count anytime (opens a small badge with the number):
+ *   https://hits.sh/dilnuka.github.io/Meteorology-Data-Center-3D-view.svg
+ *
+ * Optional GA4: set window.__GA_MEASUREMENT_ID = 'G-XXXXXXXX' before this loads.
  */
 
-const COUNTER_NAMESPACE = 'dom-meteorology-dc';
-const COUNTER_KEY = 'pageviews';
+const PAGE_PATH = 'dilnuka.github.io/Meteorology-Data-Center-3D-view';
+const HITS_SVG = `https://hits.sh/${PAGE_PATH}.svg`;
 
 function readGaId() {
     if (typeof window.__GA_MEASUREMENT_ID === 'string' && window.__GA_MEASUREMENT_ID.startsWith('G-')) {
@@ -27,20 +27,31 @@ function readGaId() {
     return null;
 }
 
-async function bumpPublicCounter() {
+function bumpPublicCounter() {
     try {
-        // Unique-ish session guard so refresh spam doesn't inflate too wildly
         const sessionKey = 'dom-dc-counted-session';
         if (sessionStorage.getItem(sessionKey)) return;
         sessionStorage.setItem(sessionKey, '1');
 
-        const url = `https://api.counterapi.dev/v1/${COUNTER_NAMESPACE}/${COUNTER_KEY}/up`;
-        const res = await fetch(url, { method: 'GET', mode: 'cors' });
-        if (!res.ok) return;
-        const data = await res.json();
-        if (typeof data?.count === 'number') {
-            window.__DOM_DC_VISIT_COUNT = data.count;
-        }
+        // Image beacon works without CORS issues
+        const img = new Image();
+        img.referrerPolicy = 'no-referrer-when-downgrade';
+        img.alt = '';
+        img.width = 1;
+        img.height = 1;
+        img.src = `${HITS_SVG}?view=today-total`;
+
+        // Best-effort parse of current total for debugging
+        fetch(`${HITS_SVG}?view=today-total`, { mode: 'cors', cache: 'no-store' })
+            .then((res) => (res.ok ? res.text() : ''))
+            .then((svg) => {
+                const match = svg.match(/hits:\s*([\d,]+)/i) || svg.match(/aria-label="([\d,]+)/);
+                if (match) {
+                    const n = Number(String(match[1]).replace(/,/g, ''));
+                    if (!Number.isNaN(n)) window.__DOM_DC_VISIT_COUNT = n;
+                }
+            })
+            .catch(() => {});
     } catch (_) {
         // Offline / blocked — ignore
     }
@@ -69,16 +80,6 @@ export function initAnalytics() {
     if (gaId) initGoogleAnalytics(gaId);
 }
 
-export async function fetchVisitCount() {
-    try {
-        const res = await fetch(
-            `https://api.counterapi.dev/v1/${COUNTER_NAMESPACE}/${COUNTER_KEY}`,
-            { mode: 'cors' }
-        );
-        if (!res.ok) return null;
-        const data = await res.json();
-        return typeof data?.count === 'number' ? data.count : null;
-    } catch (_) {
-        return null;
-    }
+export function getVisitBadgeUrl() {
+    return `${HITS_SVG}?view=today-total`;
 }

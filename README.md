@@ -21,11 +21,11 @@ Copy that URL into your office group chat / email / Teams.
 
 Visits are counted automatically (one count per browser session).
 
-**Check the current visit count here:**
+**Check the current visit count here** (opens a badge — the number is your total views):
 
-https://api.counterapi.dev/v1/dom-meteorology-dc/pageviews
+[![Visits](https://hits.sh/dilnuka.github.io/Meteorology-Data-Center-3D-view.svg?view=today-total)](https://hits.sh/dilnuka.github.io/Meteorology-Data-Center-3D-view.svg?view=today-total)
 
-You will see JSON like `{ "count": 42 }` — that number is how many sessions have opened the demo.
+Direct link: https://hits.sh/dilnuka.github.io/Meteorology-Data-Center-3D-view.svg?view=today-total
 
 ### Optional: Google Analytics (richer reports)
 
