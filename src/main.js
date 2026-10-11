@@ -458,24 +458,25 @@ let wallMat;
 let rackMat;
 
 // Label setup mapping screen divs to world vectors (updated coords)
-let showLabels = true;
+// Mobile starts with labels off — too many pins crowd a small screen.
+let showLabels = !isCoarsePointer();
 const labels = [
-    { element: document.getElementById('lbl-ups'), pos: new THREE.Vector3(5.5, 2.3, 1.2), xrayOnly: false },
-    { element: document.getElementById('lbl-pac-l'), pos: new THREE.Vector3(14.0, 2.7, 6.0), xrayOnly: false },
-    { element: document.getElementById('lbl-pac-r'), pos: new THREE.Vector3(11.0, 2.7, 10.0), xrayOnly: false },
-    { element: document.getElementById('lbl-racks'), pos: new THREE.Vector3(5.0, 2.7, 6.8), xrayOnly: false },
-    { element: document.getElementById('lbl-fire'), pos: new THREE.Vector3(-1.0, 2.5, 8.0), xrayOnly: false },
-    { element: document.getElementById('lbl-security'), pos: new THREE.Vector3(6.44, 2.8, 12.75), xrayOnly: false },
-    { element: document.getElementById('lbl-panel'), pos: new THREE.Vector3(0.5, 2.2, 4.5), xrayOnly: false },
-    { element: document.getElementById('lbl-tray'), pos: new THREE.Vector3(8.0, 0.25, 8.8), xrayOnly: true },
-    { element: document.getElementById('lbl-leak'), pos: new THREE.Vector3(12.5, 0.15, 8.0), xrayOnly: true },
-    { element: document.getElementById('lbl-overhead-data'), pos: new THREE.Vector3(8.0, 3.4, 8.8), xrayOnly: false },
-    { element: document.getElementById('lbl-overhead-power'), pos: new THREE.Vector3(8.0, 3.4, 6.5), xrayOnly: false },
-    { element: document.getElementById('lbl-vesda'), pos: new THREE.Vector3(8.0, 3.4, 7.8), xrayOnly: false },
-    { element: document.getElementById('lbl-smoke'), pos: new THREE.Vector3(10.5, 3.4, 9.2), xrayOnly: false },
-    { element: document.getElementById('lbl-busbar'), pos: new THREE.Vector3(8.0, 0.15, 9.8), xrayOnly: true },
-    { element: document.getElementById('lbl-earth'), pos: new THREE.Vector3(7.0, 0.15, 8.8), xrayOnly: true }
-];
+    { element: document.getElementById('lbl-ups'), pos: new THREE.Vector3(5.5, 2.3, 1.2), xrayOnly: false, priority: 9 },
+    { element: document.getElementById('lbl-pac-l'), pos: new THREE.Vector3(14.0, 2.7, 6.0), xrayOnly: false, priority: 9 },
+    { element: document.getElementById('lbl-pac-r'), pos: new THREE.Vector3(11.0, 2.7, 10.0), xrayOnly: false, priority: 8 },
+    { element: document.getElementById('lbl-racks'), pos: new THREE.Vector3(5.0, 2.7, 6.8), xrayOnly: false, priority: 10 },
+    { element: document.getElementById('lbl-fire'), pos: new THREE.Vector3(-1.0, 2.5, 8.0), xrayOnly: false, priority: 8 },
+    { element: document.getElementById('lbl-security'), pos: new THREE.Vector3(6.44, 2.8, 12.75), xrayOnly: false, priority: 8 },
+    { element: document.getElementById('lbl-panel'), pos: new THREE.Vector3(0.5, 2.2, 4.5), xrayOnly: false, priority: 7 },
+    { element: document.getElementById('lbl-tray'), pos: new THREE.Vector3(8.0, 0.25, 8.8), xrayOnly: true, priority: 4 },
+    { element: document.getElementById('lbl-leak'), pos: new THREE.Vector3(12.5, 0.15, 8.0), xrayOnly: true, priority: 3 },
+    { element: document.getElementById('lbl-overhead-data'), pos: new THREE.Vector3(8.0, 3.4, 8.8), xrayOnly: false, priority: 5 },
+    { element: document.getElementById('lbl-overhead-power'), pos: new THREE.Vector3(8.0, 3.4, 6.5), xrayOnly: false, priority: 4 },
+    { element: document.getElementById('lbl-vesda'), pos: new THREE.Vector3(8.0, 3.4, 7.8), xrayOnly: false, priority: 4 },
+    { element: document.getElementById('lbl-smoke'), pos: new THREE.Vector3(10.5, 3.4, 9.2), xrayOnly: false, priority: 3 },
+    { element: document.getElementById('lbl-busbar'), pos: new THREE.Vector3(8.0, 0.15, 9.8), xrayOnly: true, priority: 3 },
+    { element: document.getElementById('lbl-earth'), pos: new THREE.Vector3(7.0, 0.15, 8.8), xrayOnly: true, priority: 2 }
+].filter((l) => l.element);
 
 // Specs mapped from the Bidding PDF
 const CONTRACT_SPECS = {
@@ -2331,6 +2332,7 @@ xrayBtn.addEventListener('click', () => {
 });
 
 const labelToggleBtn = document.getElementById('label-toggle-btn');
+setPressed(labelToggleBtn, showLabels);
 labelToggleBtn.addEventListener('click', () => {
     showLabels = !showLabels;
     setPressed(labelToggleBtn, showLabels);
@@ -2667,27 +2669,75 @@ window.addEventListener('resize', resizeRenderer);
 window.visualViewport?.addEventListener('resize', resizeRenderer);
 
 const tempV = new THREE.Vector3();
+const placedLabelPts = [];
+
 function updateLabelsEngine() {
-    labels.forEach(label => {
-        if (!showLabels) {
-            label.element.style.display = 'none';
-            return;
-        }
+    const tourOpen = document.getElementById('tour-overlay') && !document.getElementById('tour-overlay').hidden;
+    const helpOpen = document.getElementById('help-modal') && !document.getElementById('help-modal').hidden;
+    if (!showLabels || tourOpen || helpOpen || document.body.classList.contains('walk-active')) {
+        labels.forEach((label) => { label.element.style.display = 'none'; });
+        return;
+    }
+
+    const rect = renderer.domElement.getBoundingClientRect();
+    const width = rect.width || window.innerWidth;
+    const height = rect.height || window.innerHeight;
+    const mobile = isCoarsePointer() || width < 820;
+    const maxLabels = mobile ? 5 : 10;
+    const minDist = mobile ? 58 : 44;
+    const padTop = mobile ? 72 : 64;
+    const padBottom = mobile ? 72 : 56;
+    const padX = 12;
+
+    const candidates = [];
+    labels.forEach((label) => {
         if (label.xrayOnly && !xrayActive) {
             label.element.style.display = 'none';
             return;
         }
+        // On phones, skip low-priority overhead clutter unless x-ray is on
+        if (mobile && !xrayActive && label.priority < 7) {
+            label.element.style.display = 'none';
+            return;
+        }
+
         tempV.copy(label.pos);
         tempV.project(camera);
-        const isBehindCamera = tempV.z > 1;
-        if (isBehindCamera) {
+        if (tempV.z > 1 || tempV.x < -1.15 || tempV.x > 1.15 || tempV.y < -1.15 || tempV.y > 1.15) {
             label.element.style.display = 'none';
-        } else {
-            label.element.style.display = 'block';
-            const x = (tempV.x * .5 + .5) * window.innerWidth;
-            const y = (tempV.y * -.5 + .5) * window.innerHeight;
-            label.element.style.transform = `translate(-50%, -100%) translate(${x}px,${y}px)`;
+            return;
         }
+
+        let x = (tempV.x * 0.5 + 0.5) * width;
+        let y = (tempV.y * -0.5 + 0.5) * height;
+        x = THREE.MathUtils.clamp(x, padX, width - padX);
+        y = THREE.MathUtils.clamp(y, padTop, height - padBottom);
+
+        candidates.push({
+            label,
+            x,
+            y,
+            priority: label.priority || 1,
+            depth: tempV.z
+        });
+    });
+
+    candidates.sort((a, b) => b.priority - a.priority || a.depth - b.depth);
+    placedLabelPts.length = 0;
+    let shown = 0;
+
+    candidates.forEach((c) => {
+        const overlaps = placedLabelPts.some(
+            (p) => Math.hypot(p.x - c.x, p.y - c.y) < minDist
+        );
+        if (overlaps || shown >= maxLabels) {
+            c.label.element.style.display = 'none';
+            return;
+        }
+        placedLabelPts.push({ x: c.x, y: c.y });
+        shown += 1;
+        c.label.element.style.display = 'block';
+        c.label.element.style.transform = `translate(-50%, -110%) translate(${c.x}px,${c.y}px)`;
     });
 }
 

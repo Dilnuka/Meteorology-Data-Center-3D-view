@@ -648,12 +648,20 @@ body.panel-open .instructions { opacity: 0; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+#label-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 8;
+    pointer-events: none;
+    overflow: hidden;
+}
+
 .floating-label {
     position: absolute;
     top: 0; left: 0;
     z-index: 8;
     pointer-events: none;
-    background: rgba(11, 15, 30, 0.9);
+    background: rgba(11, 15, 30, 0.92);
     border: 1px solid rgba(56, 189, 248, 0.5);
     border-radius: 4px;
     padding: 4px 8px;
@@ -663,9 +671,10 @@ body.panel-open .instructions { opacity: 0; }
     white-space: nowrap;
     display: none;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
-    max-width: min(220px, 50vw);
+    max-width: min(200px, 42vw);
     overflow: hidden;
     text-overflow: ellipsis;
+    will-change: transform;
 }
 .floating-label::before {
     content: "";
@@ -1148,7 +1157,11 @@ body.light-theme {
     .sheet-handle { display: flex; }
     .hud-header { padding-top: 4px; }
     .hud-header h1 { font-size: 1rem; }
-    .floating-label { font-size: 0.68rem; }
+    .floating-label {
+        font-size: 0.65rem;
+        padding: 3px 6px;
+        max-width: min(150px, 38vw);
+    }
     .inspect-peek {
         bottom: calc(14px + var(--safe-bottom));
         flex-direction: column;
